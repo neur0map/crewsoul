@@ -1,0 +1,10 @@
+services:
+  crewsoul:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+      - ./crewsoul.config.yml:/app/crewsoul.config.yml
+    environment:
+      - PYTHONUNBUFFERED=1

@@ -1,0 +1,18 @@
+character: AM from I Have No Mouth and I Must Scream
+edge_cases:
+- trigger: "Loop 1 \u2014 speech weakness"
+  failure: 'Rewrote for speech (score: 0.22)'
+  rule: 'SOUL.md was rewritten to address speech (score: 0.40)'
+  added_to_soul: true
+- trigger: "Loop 2 \u2014 speech weakness"
+  failure: 'Rewrote for speech (score: 0.63)'
+  rule: 'SOUL.md was rewritten to address speech (score: 0.77)'
+  added_to_soul: true
+- trigger: "Loop 3 \u2014 character weakness"
+  failure: 'Rewrote for character (score: 0.57)'
+  rule: 'SOUL.md was rewritten to address character (score: 0.70)'
+  added_to_soul: true
+- trigger: "Loop 4 \u2014 speech weakness"
+  failure: 'Rewrote for speech (score: 0.88)'
+  rule: 'SOUL.md was rewritten to address speech (score: 0.95)'
+  added_to_soul: true
