@@ -67,6 +67,7 @@ def start_runners(app: FastAPI) -> None:
         queue=app.state.queue, writer=writer,
         converser_model=models.converser, target_model=models.target,
         judge_model=models.judge, config=config.orchestration,
+        scoring_config=config.scoring,
     )
     app.state.background_tasks.append(asyncio.create_task(orch.run_continuous()))
     logger.info("Background runners started (provider=%s, search=%s)", active, "brave" if config.search.brave.api_key else "perplexity" if config.search.perplexity.api_key else "none")

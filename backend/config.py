@@ -75,11 +75,30 @@ class OutputSettings:
 
 
 @dataclass
+class LeakDetectorSettings:
+    hard_match_score: float = 0.0
+    soft_match_penalty: float = 0.15
+    soft_match_floor: float = 0.2
+
+
+@dataclass
+class ScoringSettings:
+    llm_calls: int = 2
+    divergence_threshold: float = 0.3
+    leak_detector: LeakDetectorSettings = field(default_factory=LeakDetectorSettings)
+
+    def __post_init__(self):
+        if isinstance(self.leak_detector, dict):
+            self.leak_detector = LeakDetectorSettings(**self.leak_detector)
+
+
+@dataclass
 class AppConfig:
     provider: ProviderSettings = field(default_factory=ProviderSettings)
     search: SearchSettings = field(default_factory=SearchSettings)
     orchestration: OrchestrationSettings = field(default_factory=OrchestrationSettings)
     output: OutputSettings = field(default_factory=OutputSettings)
+    scoring: ScoringSettings = field(default_factory=ScoringSettings)
 
     def __post_init__(self):
         if isinstance(self.provider, dict):
@@ -90,6 +109,8 @@ class AppConfig:
             self.orchestration = OrchestrationSettings(**self.orchestration)
         if isinstance(self.output, dict):
             self.output = OutputSettings(**self.output)
+        if isinstance(self.scoring, dict):
+            self.scoring = ScoringSettings(**self.scoring)
 
 
 def load_config(path: Path) -> Optional[AppConfig]:

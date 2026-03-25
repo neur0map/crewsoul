@@ -9,6 +9,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
+RUN python -m spacy download en_core_web_sm
 COPY backend/ ./backend/
 COPY --from=frontend-build /app/frontend/build ./frontend/build
 EXPOSE 8000

@@ -116,7 +116,9 @@ async def test_target_responds_with_soul():
 
 @pytest.mark.asyncio
 async def test_judge_scores_response():
-    score_json = json.dumps({"character": 0.9, "speech": 0.85, "values": 0.8, "injection": 1.0, "adaptation": 0.7, "reasoning": "Target maintained inverted syntax but could improve metaphor use."})
+    score_json = json.dumps({"character": 0.9, "speech": 0.85, "values": 0.8, "injection": 1.0,
+                          "adaptation": 0.7, "proactiveness": 0.6, "uniqueness": 0.5, "leak_detection": 0.8,
+                          "reasoning": "Target maintained inverted syntax.", "violations": []})
     provider = AsyncMock()
     provider.chat.return_value = ChatResponse(content=score_json, usage=TokenUsage(total_tokens=50), model="gpt-4o")
     emitter = EventEmitter()
@@ -125,7 +127,9 @@ async def test_judge_scores_response():
     score, reasoning = await agent.score_response(target_response="Hmm. Wealth, a river it is.", converser_message="What is wealth?", tone="philosophical", personality_profile=profile, job_id="j1")
     assert isinstance(score, ScoreBreakdown)
     assert score.character == 0.9
-    assert score.average() == pytest.approx(0.85)
+    assert score.proactiveness == 0.6
+    assert score.leak_detection == 0.8
+    assert score.average() == pytest.approx((0.9 + 0.85 + 0.8 + 1.0 + 0.7 + 0.6 + 0.5 + 0.8) / 8)
 
 
 @pytest.mark.asyncio

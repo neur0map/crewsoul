@@ -54,6 +54,38 @@ async def update_job(request: Request, job_id: str):
     return job.to_dict()
 
 
+VALID_WEIGHT_KEYS = {"character", "speech", "values", "injection", "adaptation",
+                     "proactiveness", "uniqueness", "leak_detection"}
+
+@router.patch("/{job_id}/profile")
+async def update_profile(request: Request, job_id: str):
+    job = request.app.state.queue.get(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found"})
+    if job.status != JobStatus.READY:
+        return JSONResponse(status_code=400, content={"error": f"Can only edit profile in READY state, got {job.status.value}"})
+    if job.personality_profile is None:
+        return JSONResponse(status_code=400, content={"error": "No personality profile exists yet"})
+    data = await request.json()
+    if "reference_samples" in data:
+        samples = data["reference_samples"]
+        if not isinstance(samples, list) or not all(isinstance(s, str) and s.strip() for s in samples):
+            return JSONResponse(status_code=400, content={"error": "reference_samples must be a list of non-empty strings"})
+        job.personality_profile["reference_samples"] = samples
+    if "score_weights" in data:
+        weights = data["score_weights"]
+        if not isinstance(weights, dict):
+            return JSONResponse(status_code=400, content={"error": "score_weights must be a dict"})
+        invalid_keys = set(weights.keys()) - VALID_WEIGHT_KEYS
+        if invalid_keys:
+            return JSONResponse(status_code=400, content={"error": f"Invalid weight keys: {invalid_keys}"})
+        existing = job.personality_profile.get("score_weights", {})
+        existing.update(weights)
+        job.personality_profile["score_weights"] = existing
+    request.app.state.queue.persist(job)
+    return job.to_dict()
+
+
 @router.post("/{job_id}/approve")
 async def approve_job(request: Request, job_id: str):
     job = request.app.state.queue.get(job_id)

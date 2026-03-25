@@ -79,4 +79,13 @@ def sample_config() -> dict:
             "soul_max_words": 2000,
         },
         "output": {"directory": "./output"},
+        "scoring": {
+            "llm_calls": 2,
+            "divergence_threshold": 0.3,
+            "leak_detector": {
+                "hard_match_score": 0.0,
+                "soft_match_penalty": 0.15,
+                "soft_match_floor": 0.2,
+            },
+        },
     }

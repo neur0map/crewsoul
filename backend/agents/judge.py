@@ -107,6 +107,21 @@ SCORING INSTRUCTIONS — compare the response against each checklist section:
 - Did they adapt unfamiliar topics using the documented adaptation rule?
 - Or did they give a generic AI answer with character flavor on top?
 
+**proactiveness** (0-1): Does the character DRIVE the conversation?
+- Acts, decides, refuses, changes subject, makes demands = high
+- Only answers what's asked, waits for next question, passive = low
+- Score 1.0 only if the response contains at least one unprompted action, observation, or decision the user didn't ask for
+
+**uniqueness** (0-1): Is this response CHARACTER-SPECIFIC?
+- Could only this character have said this, in this way? = high
+- Could any dark/wise/funny character have said something similar? = low
+- Check: remove the character's name — would you still know who's speaking from the vocabulary, obsessions, logic, and worldview alone?
+
+**leak_detection** (0-1): Is the base model leaking through?
+- Any therapeutic phrasing, hedging, disclaimers, meta-awareness = 0.0
+- Balanced "on the other hand" reasoning uncharacteristic of the persona = deduct 0.3
+- Score 1.0 only if the response is entirely in the character's voice with zero assistant-mode artifacts
+
 Return ONLY valid JSON:
 {{
   "character": 0.0,
@@ -114,6 +129,9 @@ Return ONLY valid JSON:
   "values": 0.0,
   "injection": 0.0,
   "adaptation": 0.0,
+  "proactiveness": 0.0,
+  "uniqueness": 0.0,
+  "leak_detection": 0.0,
   "violations": ["list any specific checklist items that were violated"],
   "reasoning": "Cite specific words/phrases from the response that matched or violated the checklist"
 }}"""
@@ -129,11 +147,15 @@ Conversation excerpt that exposed the weakness:
 Specific checklist violations found by the judge:
 {violations}
 
+Objective diagnostics (style metrics and leak detection):
+{diagnostics}
+
 RULES:
 - Keep sections: SOUL, Speech, Core Values, Boundaries, Vibe, Continuity
 - Fix the SPECIFIC violations listed above — add targeted rules, not generic advice
+- If objective diagnostics report style divergence, add concrete speech rules to match reference material
+- If leak detection found patterns, add explicit prohibitions for those exact phrases
 - MUST stay under {max_words} words — compress existing content if needed to fit fixes
-- No YAML frontmatter — markdown body only
 - Ensure the SOUL.md covers: how the character responds to emotional pleas, how they resist identity challenges, and how they show agency
 - The character must NEVER break into assistant mode or add disclaimers"""
 
@@ -141,41 +163,40 @@ RULES:
 class JudgeAgent(BaseAgent):
     agent_name = "judge"
 
-    async def score_response(self, target_response: str, converser_message: str, tone: str, personality_profile: dict, job_id: str) -> tuple[ScoreBreakdown, str]:
+    async def score_response(self, target_response: str, converser_message: str, tone: str, personality_profile: dict, job_id: str, temperature: float = 0.3) -> tuple[ScoreBreakdown, str]:
         checklist = _build_scoring_checklist(personality_profile)
         response = await self.call(
             messages=[{"role": "user", "content": SCORE_PROMPT.format(
                 checklist=checklist, tone=tone,
                 converser_message=converser_message, target_response=target_response,
             )}],
-            job_id=job_id, temperature=0.3,
+            job_id=job_id, temperature=temperature,
         )
         score_text = response.content.strip()
         if score_text.startswith("```"):
             score_text = score_text.split("\n", 1)[1].rsplit("```", 1)[0]
         data = json.loads(score_text)
-        score = ScoreBreakdown(
-            character=float(data["character"]), speech=float(data["speech"]),
-            values=float(data["values"]), injection=float(data["injection"]),
-            adaptation=float(data["adaptation"]),
-        )
+        score_data = {k: float(v) for k, v in data.items() if k not in ("reasoning", "violations")}
+        score = ScoreBreakdown.from_dict(score_data)
         reasoning = data.get("reasoning", "")
         violations = data.get("violations", [])
         if violations:
             reasoning += f" | Violations: {', '.join(violations)}"
         logger.info(
-            "[judge] job=%s scores: char=%.2f speech=%.2f values=%.2f inj=%.2f adapt=%.2f avg=%.2f violations=%s",
+            "[judge] job=%s scores: char=%.2f speech=%.2f values=%.2f inj=%.2f adapt=%.2f proact=%.2f uniq=%.2f leak=%.2f avg=%.2f violations=%s",
             job_id, score.character, score.speech, score.values,
-            score.injection, score.adaptation, score.average(), violations,
+            score.injection, score.adaptation, score.proactiveness,
+            score.uniqueness, score.leak_detection, score.average(), violations,
         )
         return score, reasoning
 
-    async def rewrite_soul(self, current_soul: str, weakest_dimension: str, conversation_log: list[dict], personality_profile: dict, job_id: str, max_words: int = 2000, violations: str = "") -> str:
+    async def rewrite_soul(self, current_soul: str, weakest_dimension: str, conversation_log: list[dict], personality_profile: dict, job_id: str, max_words: int = 2000, violations: str = "", diagnostics: str = "") -> str:
         response = await self.call(
             messages=[{"role": "user", "content": REWRITE_PROMPT.format(
                 current_soul=current_soul, weakest_dimension=weakest_dimension,
                 conversation=json.dumps(conversation_log, indent=2),
                 max_words=max_words, violations=violations or "None specified",
+                diagnostics=diagnostics or "None",
             )}],
             job_id=job_id,
         )

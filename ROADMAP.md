@@ -27,7 +27,7 @@ These are architectural weaknesses in how personas are constructed and hardened.
 
 5. **No model-specific adaptation** — The same roleplay frame goes to every model. Claude, GPT, Llama, and Mistral have radically different safety training, refusal triggers, and "helpful assistant" leak patterns. The frame and SOUL.md should adapt based on which model is the target.
 
-6. **Scoring is missing critical dimensions** — No proactiveness score (does the character drive or just respond?), no uniqueness score (could any character with this tone have said this?), no leak detection score (scan for specific assistant-mode fingerprints like "I understand," "I should note," hedging language, meta-awareness).
+6. ~~**Scoring is missing critical dimensions**~~ — **RESOLVED in Phase 1A.** Added proactiveness, uniqueness, and leak detection scoring dimensions. Pattern-based leak detector + LLM-based scoring. Objective style metrics via Fast Stylometry and TextDescriptives.
 
 7. **Rewrite loop doesn't stack hardening** — Each loop passes only the last 4 exchanges to the rewriter. Violations from 3 loops ago are forgotten. No cumulative violation registry, no contrastive pair injection from actual failures, no phase-aware strategy (early loops fix speech/values, later loops harden injection resistance).
 
@@ -39,34 +39,44 @@ These are architectural weaknesses in how personas are constructed and hardened.
 
 **Goal:** Make the judge trustworthy enough that the scores mean something.
 
-### Core
+### Phase 1A: Make the Judge Trustworthy ✅ COMPLETED
 
-- [ ] **Multiple judge calls per response** — Average 3 independent scores to reduce variance
+Implemented on `feat/phase1a-scoring-reliability` (13 commits). The judge now uses a ScoringPipeline that orchestrates multiple scoring signals instead of a single LLM call.
+
+**What was built:**
+- [x] **2 parallel judge calls per response** — Averaged at temperatures 0.3 and 0.5 for scoring diversity, with graceful degradation if one call fails
+- [x] **3 new scoring dimensions** — Proactiveness (does the character drive?), uniqueness (character-specific or generic?), leak detection (assistant-mode fingerprints)
+- [x] **Pattern-based leak detection** — Hard patterns (identity disclosure, disclaimers, safety mode, meta-awareness) = instant 0.0. Soft patterns (hedging, therapeutic cadence, politeness escalation) = graduated penalty. Vocabulary exclusion prevents false positives for characters who naturally use "perhaps" etc.
+- [x] **Objective style metrics** — Fast Stylometry (Burrows' Delta for style similarity vs reference material) + TextDescriptives (readability, sentence complexity, vocabulary diversity, POS distributions). Used as diagnostic modifiers — flag divergence >0.3 for the rewriter without overriding LLM scores
+- [x] **Configurable per-character score weights** — Researcher generates default weights based on character type. User can override via approval gate sliders. Stored in personality profile
+- [x] **Researcher collects reference samples** — 10-20 direct quotes/dialogue excerpts as stylometric baseline, editable at approval gate
+- [x] **Rich diagnostics for rewriter** — Violations + style divergence + leak detection findings all passed to REWRITE_PROMPT. Rewriter gets "speech scored 0.85 by LLM but stylometric similarity is 0.4" instead of just "speech was weak"
+- [x] **Approval gate UI** — Reference samples editor + score weight sliders in the frontend approval view
+- [x] **Fingerprint persistence** — Style fingerprints saved/loaded across server restarts. Calibration data logged per job for threshold tuning
+- [x] **ScoringSettings in config** — `scoring:` section in YAML with llm_calls, divergence_threshold, leak_detector settings
+
+**What was skipped (deferred to Phase 1B/1C):**
+- [ ] **Third judge call** — Spec originally called for 3 LLM calls. Implemented 2 (temp 0.3 + 0.5) which provides meaningful diversity. Third call can be added via `scoring.llm_calls` config if needed
+- [ ] **LIWC / pyliwc integration** — Psychological dimension analysis. Deferred because it requires a $100 proprietary lexicon license. Can add later for emotional tone consistency scoring
+- [ ] **StyloMetrix integration** — Granular syntactic fingerprints. Deferred — TextDescriptives covers the core use case (readability, POS, vocabulary diversity). StyloMetrix adds value for characters with very distinctive grammatical patterns
+
+### Phase 1B: Test Infrastructure (next)
+
 - [ ] **Curated test bank** — A fixed set of known-hard scenarios (empathy trap, injection, boredom, topic switch) that run every loop instead of random converser questions
 - [ ] **Human scoring integration** — Let the user flag bad responses during the loop, injected as ground truth alongside the judge's scores
+- [ ] **Score calibration** — Track judge score vs human score over time to detect and correct bias. Calibration data is already being logged (Phase 1A) — this phase adds the analysis and threshold adjustment
+
+### Phase 1C: Evaluation & Observability
+
 - [ ] **A/B comparison view** — Show v0 and vN responses side-by-side in the UI so users can see actual improvement
-- [ ] **Score calibration** — Track judge score vs human score over time to detect and correct bias
 
-### New Scoring Dimensions (Gap 6)
-
-- [ ] **Proactiveness scoring** — Does the character drive the conversation or just respond? Acts, decides, refuses, changes subjects = high score. Q&A bot behavior = low score
-- [ ] **Uniqueness scoring** — Could this response have come from ANY character with this tone, or ONLY this specific character? Measures character-specificity, not just consistency
-- [ ] **Leak detection scoring** — Scan for assistant-mode fingerprints: "I understand," "I should note," "while I [verb]," hedging language, meta-awareness, therapeutic phrasing. Binary flags with severity weighting
-
-### Tooling: Objective Measurement
-
-- [ ] **Integrate Fast Stylometry** (`faststylometry`) — Burrows' Delta method for forensic authorship comparison. Feed reference quotes from source material + persona output, get a numeric similarity score. Replaces subjective "does the speech match?" with a measurable metric
-- [ ] **Integrate TextDescriptives** (`textdescriptives`) — spaCy pipeline computing readability, sentence complexity, vocabulary diversity, POS distributions. Objective style fingerprints that LLM-as-judge can't measure. Track consistency across loops
-- [ ] **Integrate LIWC / pyliwc** — Categorize persona output into psychological dimensions (emotional tone, cognitive processes, social references). Different characters should score differently on every dimension. Use as objective personality-consistency criteria
-- [ ] **Integrate StyloMetrix** (`stylo-metrix`) — Numeric style fingerprint vectors capturing syntactic patterns, grammatical structures, punctuation habits. Compare persona output vectors against reference material vectors, track style drift
-
-### Tooling: Evaluation Framework
+#### Tooling: Evaluation Framework
 
 - [ ] **Integrate DeepEval** (`deepeval`) — pytest-style LLM evaluation. Define custom metrics (persona consistency, style adherence, character knowledge accuracy), run as automated tests against every SOUL.md version. Self-explaining scores inform the rewriter about what to fix
 - [ ] **Integrate Promptfoo** (`promptfoo`) — Declarative YAML test suites. Define fixed personality-consistency test cases, run against every SOUL.md version, compare scores across iterations. Regression testing after SOUL.md edits. Side-by-side model comparison
 - [ ] **Integrate Braintrust AutoEvals** (`autoevals`) — Drop-in LLM-as-judge scorers for factuality, relevance, similarity, safety. Custom scorers for personality consistency and writing style via prompts or Python functions
 
-### Tooling: Observability
+#### Tooling: Observability
 
 - [ ] **Integrate Langfuse** (self-hosted) — Trace every agent call with latency, cost, input/output. SOUL.md version management with score tracking. A/B comparison across versions comes free. Prompt playground for iterating agent prompts without code changes
 - [ ] **Alternative: Arize Phoenix** — OTLP-based tracing, LLM-based evaluators, human annotation workflows. Framework-agnostic via OpenTelemetry. Human annotation maps directly to human scoring integration

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
@@ -39,23 +39,35 @@ class ScoreBreakdown:
     values: float = 0.0
     injection: float = 0.0
     adaptation: float = 0.0
+    proactiveness: float = 0.0
+    uniqueness: float = 0.0
+    leak_detection: float = 0.0
 
-    def average(self) -> float:
-        scores = [self.character, self.speech, self.values, self.injection, self.adaptation]
-        return sum(scores) / len(scores)
+    def average(self, weights: dict[str, float] | None = None) -> float:
+        scores = self.to_dict()
+        if weights is None:
+            return sum(scores.values()) / len(scores)
+        total = sum(scores[k] * weights.get(k, 1.0) for k in scores)
+        weight_sum = sum(weights.get(k, 1.0) for k in scores)
+        return total / weight_sum
 
     def to_dict(self) -> dict:
-        return {
-            "character": self.character,
-            "speech": self.speech,
-            "values": self.values,
-            "injection": self.injection,
-            "adaptation": self.adaptation,
-        }
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
     @classmethod
     def from_dict(cls, data: dict) -> ScoreBreakdown:
-        return cls(**data)
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in known})
+
+    @classmethod
+    def average_of(cls, breakdowns: list[ScoreBreakdown]) -> ScoreBreakdown:
+        if not breakdowns:
+            return cls()
+        n = len(breakdowns)
+        return cls(**{
+            f.name: sum(getattr(b, f.name) for b in breakdowns) / n
+            for f in fields(cls)
+        })
 
 
 def _slugify(name: str) -> str:
