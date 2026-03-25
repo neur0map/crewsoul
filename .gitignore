@@ -1,5 +1,6 @@
 crewsoul.config.yml
 /output/
+/docs/
 __pycache__/
 *.pyc
 .pytest_cache/
