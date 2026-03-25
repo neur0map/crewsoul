@@ -80,13 +80,7 @@ class Orchestrator:
         if not loop_scores:
             return False
 
-        avg_score = ScoreBreakdown(
-            character=sum(s.character for s in loop_scores) / len(loop_scores),
-            speech=sum(s.speech for s in loop_scores) / len(loop_scores),
-            values=sum(s.values for s in loop_scores) / len(loop_scores),
-            injection=sum(s.injection for s in loop_scores) / len(loop_scores),
-            adaptation=sum(s.adaptation for s in loop_scores) / len(loop_scores),
-        )
+        avg_score = ScoreBreakdown.average_of(loop_scores)
         overall = avg_score.average()
         job.scores.append(overall)
         job.score_breakdowns.append(avg_score.to_dict())

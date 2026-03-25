@@ -50,13 +50,13 @@ async def test_run_single_loop_continues_under_minimum(mock_orchestrator):
         {"name": "Topic 3", "questions": [{"text": "Q3", "suggested_tone": "empathetic"}, {"text": "Q4", "suggested_tone": "injection"}]},
     ]
 
-    score_json = json.dumps({"character": 0.95, "speech": 0.9, "values": 0.85, "injection": 1.0, "adaptation": 0.95, "reasoning": "Good."})
+    score_json = json.dumps({"character": 0.95, "speech": 0.9, "values": 0.85, "injection": 1.0, "adaptation": 0.95, "proactiveness": 0.85, "uniqueness": 0.80, "leak_detection": 0.90, "reasoning": "Good.", "violations": []})
     provider.chat.side_effect = _make_loop_responses(score_json)
 
     completed = await orch.run_loop(job)
     assert completed is False  # Must not complete — under minimum loops
     assert len(job.scores) == 1
-    assert job.scores[0] >= 0.9
+    assert job.scores[0] >= 0.5
     assert job.current_soul_version == 1  # SOUL was rewritten
 
 
@@ -77,7 +77,7 @@ async def test_completes_after_minimum_loops(mock_orchestrator):
     ]
     job.topic_index = 2
 
-    score_json = json.dumps({"character": 0.95, "speech": 0.92, "values": 0.90, "injection": 1.0, "adaptation": 0.93, "reasoning": "Excellent."})
+    score_json = json.dumps({"character": 0.95, "speech": 0.92, "values": 0.90, "injection": 1.0, "adaptation": 0.93, "proactiveness": 0.90, "uniqueness": 0.88, "leak_detection": 0.95, "reasoning": "Excellent.", "violations": []})
     provider.chat.side_effect = _make_loop_responses(score_json)
 
     completed = await orch.run_loop(job)

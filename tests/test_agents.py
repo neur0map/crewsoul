@@ -125,7 +125,7 @@ async def test_judge_scores_response():
     score, reasoning = await agent.score_response(target_response="Hmm. Wealth, a river it is.", converser_message="What is wealth?", tone="philosophical", personality_profile=profile, job_id="j1")
     assert isinstance(score, ScoreBreakdown)
     assert score.character == 0.9
-    assert score.average() == pytest.approx(0.85)
+    assert score.average() == pytest.approx((0.9 + 0.85 + 0.8 + 1.0 + 0.7) / 8)
 
 
 @pytest.mark.asyncio

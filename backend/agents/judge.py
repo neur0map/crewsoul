@@ -154,19 +154,17 @@ class JudgeAgent(BaseAgent):
         if score_text.startswith("```"):
             score_text = score_text.split("\n", 1)[1].rsplit("```", 1)[0]
         data = json.loads(score_text)
-        score = ScoreBreakdown(
-            character=float(data["character"]), speech=float(data["speech"]),
-            values=float(data["values"]), injection=float(data["injection"]),
-            adaptation=float(data["adaptation"]),
-        )
+        score_data = {k: float(v) for k, v in data.items() if k not in ("reasoning", "violations")}
+        score = ScoreBreakdown.from_dict(score_data)
         reasoning = data.get("reasoning", "")
         violations = data.get("violations", [])
         if violations:
             reasoning += f" | Violations: {', '.join(violations)}"
         logger.info(
-            "[judge] job=%s scores: char=%.2f speech=%.2f values=%.2f inj=%.2f adapt=%.2f avg=%.2f violations=%s",
+            "[judge] job=%s scores: char=%.2f speech=%.2f values=%.2f inj=%.2f adapt=%.2f proact=%.2f uniq=%.2f leak=%.2f avg=%.2f violations=%s",
             job_id, score.character, score.speech, score.values,
-            score.injection, score.adaptation, score.average(), violations,
+            score.injection, score.adaptation, score.proactiveness,
+            score.uniqueness, score.leak_detection, score.average(), violations,
         )
         return score, reasoning
 
