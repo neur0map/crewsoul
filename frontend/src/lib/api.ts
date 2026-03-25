@@ -32,6 +32,8 @@ export const api = {
     resume: (id: string) => request(`/jobs/${id}/resume`, { method: 'POST' }),
     export: (id: string) => request(`/jobs/${id}/export`, { method: 'POST' }),
     soul: (id: string) => request<{ content: string; version: number }>(`/jobs/${id}/soul`),
+    patchProfile: (id: string, body: { reference_samples?: string[]; score_weights?: Record<string, number> }) =>
+      request(`/jobs/${id}/profile`, { method: 'PATCH', body: JSON.stringify(body) }),
   },
   chat: {
     send: (jobId: string, message: string) =>
