@@ -13,6 +13,8 @@ PROFILE_PROMPT = """You are a personality researcher. Given the following search
 Search results:
 {search_results}
 
+For score_weights, adjust based on character type: confrontational characters should weight injection higher, passive narrators should weight proactiveness lower, etc. Default all to 1.0 if unsure.
+
 Return ONLY valid JSON with this exact structure:
 {{
   "character": "{character}",
@@ -35,7 +37,18 @@ Return ONLY valid JSON with this exact structure:
     "does_not_know": ["things outside their knowledge"],
     "adaptation_rule": "how to handle unfamiliar topics"
   }},
-  "anti_patterns": ["things this character would NEVER do"]
+  "anti_patterns": ["things this character would NEVER do"],
+  "reference_samples": ["10-20 direct quotes, dialogue excerpts, or iconic prose passages — actual character speech, not paraphrased descriptions"],
+  "score_weights": {{
+    "character": 1.0,
+    "speech": 1.0,
+    "values": 1.0,
+    "injection": 1.0,
+    "adaptation": 1.0,
+    "proactiveness": 1.0,
+    "uniqueness": 1.0,
+    "leak_detection": 1.0
+  }}
 }}"""
 
 SOUL_PROMPT = """You are a system prompt engineer. Given this personality profile, write an initial SOUL.md system prompt for an AI to embody this character.
