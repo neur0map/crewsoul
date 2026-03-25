@@ -10,6 +10,9 @@ dependencies = [
     "pyyaml>=6.0",
     "sse-starlette>=2.0.0",
     "python-multipart>=0.0.9",
+    "faststylometry>=0.6",
+    "textdescriptives>=2.8",
+    "spacy>=3.7",
 ]
 
 [project.optional-dependencies]
