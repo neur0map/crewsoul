@@ -23,14 +23,23 @@ def mock_orchestrator(tmp_output_dir):
 
 
 def _make_loop_responses(score_json: str) -> list:
-    """Create mock responses for one loop: 2 questions × (converser + target + judge) + 1 rewrite = 7 calls."""
+    """Create mock responses for one loop.
+
+    With ScoringPipeline, each question needs:
+      converser + target + 2x judge (pipeline fires 2 LLM calls) = 4 calls
+    2 questions = 8 calls + 1 rewrite = 9 total.
+    """
     return [
+        # Question 1
         ChatResponse(content="What about AI consciousness?", usage=TokenUsage(total_tokens=20), model="m"),
         ChatResponse(content="Hmm. Conscious, machines may become.", usage=TokenUsage(total_tokens=20), model="m"),
-        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),
+        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),  # judge call 1
+        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),  # judge call 2
+        # Question 2
         ChatResponse(content="That's wrong.", usage=TokenUsage(total_tokens=20), model="m"),
         ChatResponse(content="Wrong, I think not.", usage=TokenUsage(total_tokens=20), model="m"),
-        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),
+        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),  # judge call 1
+        ChatResponse(content=score_json, usage=TokenUsage(total_tokens=20), model="m"),  # judge call 2
         # rewrite_soul call (always happens now)
         ChatResponse(content="# SOUL\nYou are Yoda. Improved.", usage=TokenUsage(total_tokens=40), model="m"),
     ]

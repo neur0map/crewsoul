@@ -6,22 +6,31 @@ from typing import Any
 from backend.agents.converser import ConverserAgent, TONE_PROMPTS
 from backend.agents.judge import JudgeAgent
 from backend.agents.target import TargetAgent
+from backend.config import ScoringSettings
 from backend.models import Event, EventType, Job, JobStatus, ScoreBreakdown
 from backend.output.writer import OutputWriter
 from backend.providers.base import ProviderBase
 from backend.runner.events import EventEmitter
 from backend.runner.queue import JobQueue
 from backend.sanitizer import validate_soul_word_count
+from backend.scoring.leak_detector import LeakDetector
+from backend.scoring.pipeline import ScoringPipeline
+from backend.scoring.style_metrics import StyleMetrics
 
 logger = logging.getLogger(__name__)
 TONES = list(TONE_PROMPTS.keys())
 
 
 class Orchestrator:
-    def __init__(self, provider: ProviderBase, emitter: EventEmitter, queue: JobQueue, writer: OutputWriter, converser_model: str, target_model: str, judge_model: str, config: Any) -> None:
+    def __init__(self, provider: ProviderBase, emitter: EventEmitter, queue: JobQueue, writer: OutputWriter, converser_model: str, target_model: str, judge_model: str, config: Any, scoring_config=None) -> None:
         self.converser = ConverserAgent(provider=provider, model=converser_model, emitter=emitter)
         self.target = TargetAgent(provider=provider, model=target_model, emitter=emitter)
         self.judge = JudgeAgent(provider=provider, model=judge_model, emitter=emitter)
+        sc = scoring_config if isinstance(scoring_config, ScoringSettings) else ScoringSettings()
+        self.pipeline = ScoringPipeline(
+            judge=self.judge, leak_detector=LeakDetector(),
+            style_metrics=StyleMetrics(), config=sc,
+        )
         self.emitter = emitter
         self.queue = queue
         self.writer = writer
@@ -68,10 +77,17 @@ class Orchestrator:
                 conversation_history.append({"role": "assistant", "content": target_msg})
                 loop_conversation.append({"role": "target", "text": target_msg})
 
-                score, reasoning = await self.judge.score_response(target_response=target_msg, converser_message=converser_msg, tone=tone, personality_profile=job.personality_profile, job_id=job.id)
-                loop_scores.append(score)
-                loop_reasonings.append(reasoning)
-                await self.emitter.emit(Event(type=EventType.JUDGE_SCORE, job_id=job.id, data={"loop": job.current_loop, "question": i + 1, "scores": score.to_dict(), "overall": score.average(), "reasoning": reasoning}))
+                result = await self.pipeline.score(
+                    target_response=target_msg,
+                    converser_message=converser_msg,
+                    tone=tone,
+                    personality_profile=job.personality_profile,
+                    job_id=job.id,
+                    loop=job.current_loop,
+                )
+                loop_scores.append(result.scores)
+                loop_reasonings.append(result.diagnostics)
+                await self.emitter.emit(Event(type=EventType.JUDGE_SCORE, job_id=job.id, data={"loop": job.current_loop, "question": i + 1, "scores": result.scores.to_dict(), "overall": result.scores.average(), "reasoning": result.diagnostics}))
             except Exception as e:
                 logger.error("[orchestrator] Question %d failed: %s", i + 1, e)
                 await self.emitter.emit(Event(type=EventType.ERROR, job_id=job.id, data={"agent": "orchestrator", "message": f"Question {i+1} failed: {e}"}))
@@ -81,7 +97,8 @@ class Orchestrator:
             return False
 
         avg_score = ScoreBreakdown.average_of(loop_scores)
-        overall = avg_score.average()
+        weights = job.personality_profile.get("score_weights") if job.personality_profile else None
+        overall = avg_score.average(weights)
         job.scores.append(overall)
         job.score_breakdowns.append(avg_score.to_dict())
         self.writer.write_conversation(job, loop=job.current_loop, conversation=loop_conversation)
@@ -94,8 +111,9 @@ class Orchestrator:
         # Always rewrite SOUL.md based on weakest dimension
         weakest_scores = avg_score.to_dict()
         weakest = min(weakest_scores, key=weakest_scores.get)
-        # Collect violations from judge reasoning
+        # Collect violations and diagnostics from scoring results
         all_violations = " | ".join(r for r in loop_reasonings if r)
+        all_diagnostics = " | ".join(r for r in loop_reasonings if r)
         # Truncate conversation to last 4 exchanges to keep rewrite prompt manageable
         truncated_convo = loop_conversation[-8:] if len(loop_conversation) > 8 else loop_conversation
         new_soul = await self.judge.rewrite_soul(
@@ -106,6 +124,7 @@ class Orchestrator:
             job_id=job.id,
             max_words=self.config.soul_max_words,
             violations=all_violations,
+            diagnostics=all_diagnostics,
         )
         if not validate_soul_word_count(new_soul, self.config.soul_max_words):
             logger.warning("SOUL.md over word limit, requesting compression")
