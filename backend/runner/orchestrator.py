@@ -42,6 +42,7 @@ class Orchestrator:
         job.updated_at = datetime.now(timezone.utc).isoformat()
         self.queue.persist(job)
         await self.emitter.emit(Event(type=EventType.JOB_STATUS_CHANGE, job_id=job.id, data={"status": "LOOPING", "loop": job.current_loop, "max_loops": job.max_loops}))
+        self.pipeline.load_fingerprints(job.id, self.writer, job)
 
         topic = self._select_topic(job)
         if topic is None:
@@ -88,6 +89,13 @@ class Orchestrator:
                 loop_scores.append(result.scores)
                 loop_reasonings.append(result.diagnostics)
                 await self.emitter.emit(Event(type=EventType.JUDGE_SCORE, job_id=job.id, data={"loop": job.current_loop, "question": i + 1, "scores": result.scores.to_dict(), "overall": result.scores.average(), "reasoning": result.diagnostics}))
+                if result.objective_report.style_similarity is not None:
+                    self.writer.append_calibration(job, {
+                        "loop": job.current_loop,
+                        "llm_speech": result.scores.speech,
+                        "stylometric": result.objective_report.style_similarity,
+                        "divergence": abs(result.scores.speech - result.objective_report.style_similarity),
+                    })
             except Exception as e:
                 logger.error("[orchestrator] Question %d failed: %s", i + 1, e)
                 await self.emitter.emit(Event(type=EventType.ERROR, job_id=job.id, data={"agent": "orchestrator", "message": f"Question {i+1} failed: {e}"}))
@@ -146,6 +154,7 @@ class Orchestrator:
             type=EventType.SOUL_UPDATED, job_id=job.id,
             data={"version": job.current_soul_version, "diff": diff_summary, "word_count": len(new_soul.split())},
         ))
+        self.pipeline.save_fingerprints(job.id, self.writer, job)
 
         # Check termination only after minimum loops
         if past_minimum and passed_threshold:

@@ -76,3 +76,24 @@ class OutputWriter:
         path = job_dir / "guardrails.yml"
         data = {"character": job.character, "edge_cases": guardrails}
         path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+
+    def write_fingerprints(self, job: Job, fingerprints: list[dict]) -> None:
+        job_dir = self._job_dir(job)
+        path = job_dir / "fingerprints.json"
+        path.write_text(json.dumps(fingerprints, indent=2))
+
+    def read_fingerprints(self, job: Job) -> list[dict]:
+        job_dir = self._job_dir(job)
+        path = job_dir / "fingerprints.json"
+        if path.exists():
+            return json.loads(path.read_text())
+        return []
+
+    def append_calibration(self, job: Job, entry: dict) -> None:
+        job_dir = self._job_dir(job)
+        path = job_dir / "calibration.json"
+        entries = []
+        if path.exists():
+            entries = json.loads(path.read_text())
+        entries.append(entry)
+        path.write_text(json.dumps(entries, indent=2))

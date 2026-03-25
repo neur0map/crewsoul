@@ -107,6 +107,17 @@ class ScoringPipeline:
             objective_report=objective_report, diagnostics=" | ".join(diagnostics_parts), violations=all_violations,
         )
 
+    def save_fingerprints(self, job_id: str, writer, job) -> None:
+        from dataclasses import asdict
+        history = self.fingerprint_history.get(job_id, [])
+        writer.write_fingerprints(job, [asdict(fp) for fp in history])
+
+    def load_fingerprints(self, job_id: str, writer, job) -> None:
+        data = writer.read_fingerprints(job)
+        if data:
+            from backend.scoring.style_metrics import StyleFingerprint
+            self.fingerprint_history[job_id] = [StyleFingerprint(**d) for d in data]
+
     async def _judge_call(self, target_response, converser_message, tone, personality_profile, job_id, temp):
         return await self.judge.score_response(
             target_response=target_response, converser_message=converser_message,
