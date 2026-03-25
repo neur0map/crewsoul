@@ -101,7 +101,9 @@ All settings configurable through the web UI:
 
 ## Status
 
-Working MVP. The forge pipeline produces measurably consistent character prompts. See [ROADMAP.md](ROADMAP.md) for what's next.
+Working MVP. The forge pipeline produces measurably consistent character prompts.
+
+**Where this is headed:** CrewSoul will evolve into a full character engine — forge the persona, then deploy it as a persistent backend with memory, emotional state, and a feedback loop that improves the character from real conversations. Train it, ship it, let it learn. See [ROADMAP.md](ROADMAP.md).
 
 ## License
 
