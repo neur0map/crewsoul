@@ -6,6 +6,9 @@ export interface ScoreBreakdown {
   values: number;
   injection: number;
   adaptation: number;
+  proactiveness: number;
+  uniqueness: number;
+  leak_detection: number;
 }
 
 export interface Job {
