@@ -61,3 +61,32 @@ def test_validate_config_no_search_keys(sample_config: dict):
     config = AppConfig(**sample_config)
     errors = validate_config(config)
     assert any("search" in e.lower() for e in errors)
+
+
+def test_scoring_settings_parsed():
+    from backend.config import AppConfig, ScoringSettings, LeakDetectorSettings
+    config = AppConfig(**{
+        "provider": {"active": "openai", "openai": {"api_key": "sk-test", "models": {"judge": "m", "target": "m", "converser": "m", "fetcher": "m", "researcher": "m"}}, "openrouter": {"api_key": "", "models": {"judge": "", "target": "", "converser": "", "fetcher": "", "researcher": ""}}},
+        "search": {"brave": {"api_key": "bv-test"}, "perplexity": {"api_key": ""}},
+        "orchestration": {},
+        "output": {},
+        "scoring": {"llm_calls": 3, "divergence_threshold": 0.4, "leak_detector": {"hard_match_score": 0.0, "soft_match_penalty": 0.2, "soft_match_floor": 0.1}},
+    })
+    assert isinstance(config.scoring, ScoringSettings)
+    assert config.scoring.llm_calls == 3
+    assert config.scoring.divergence_threshold == 0.4
+    assert isinstance(config.scoring.leak_detector, LeakDetectorSettings)
+    assert config.scoring.leak_detector.soft_match_penalty == 0.2
+
+
+def test_scoring_settings_defaults():
+    from backend.config import AppConfig, ScoringSettings
+    config = AppConfig(**{
+        "provider": {"active": "openai", "openai": {"api_key": "sk-test", "models": {"judge": "m", "target": "m", "converser": "m", "fetcher": "m", "researcher": "m"}}, "openrouter": {"api_key": "", "models": {"judge": "", "target": "", "converser": "", "fetcher": "", "researcher": ""}}},
+        "search": {"brave": {"api_key": "bv-test"}, "perplexity": {"api_key": ""}},
+        "orchestration": {},
+        "output": {},
+    })
+    assert isinstance(config.scoring, ScoringSettings)
+    assert config.scoring.llm_calls == 2
+    assert config.scoring.divergence_threshold == 0.3
